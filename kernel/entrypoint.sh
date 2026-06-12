@@ -28,25 +28,39 @@ else
     adduser --uid "${PUID}" --ingroup "${group_name}" --disabled-password --gecos "" "${user_name}"
 fi
 
-# Parse command line arguments for --workspace option or SIYUAN_WORKSPACE_PATH env variable
-# Store other arguments in ARGS for later use
-if [[ -n "${SIYUAN_WORKSPACE_PATH}" ]]; then
+# Drop the default CMD when Docker passes it to the entrypoint.
+if [ "${1:-}" = "/opt/siyuan/kernel" ] || [ "${1:-}" = "kernel" ]; then
+    shift
+fi
+
+# Parse command line arguments for --workspace option or SIYUAN_WORKSPACE_PATH env variable.
+if [ -n "${SIYUAN_WORKSPACE_PATH}" ]; then
     WORKSPACE_DIR="${SIYUAN_WORKSPACE_PATH}"
 fi
-ARGS=""
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --workspace=*) WORKSPACE_DIR="${1#*=}"; shift ;;
-        *) ARGS="$ARGS $1"; shift ;;
+for arg in "$@"; do
+    case "${arg}" in
+        --workspace=*) WORKSPACE_DIR="${arg#*=}" ;;
     esac
 done
 
 # Change ownership of relevant directories, including the workspace directory
-echo "Adjusting ownership of /opt/siyuan, /home/siyuan/, and ${WORKSPACE_DIR}"
+echo "Adjusting ownership of /opt/siyuan and /home/siyuan/"
 chown -R "${PUID}:${PGID}" /opt/siyuan
 chown -R "${PUID}:${PGID}" /home/siyuan/
-chown -R "${PUID}:${PGID}" "${WORKSPACE_DIR}"
+if [ -d "${WORKSPACE_DIR}" ]; then
+    echo "Adjusting ownership of ${WORKSPACE_DIR}"
+    chown -R "${PUID}:${PGID}" "${WORKSPACE_DIR}"
+fi
+if [ -d "/siyuan/workspaces" ]; then
+    echo "Adjusting ownership of /siyuan/workspaces"
+    chown -R "${PUID}:${PGID}" /siyuan/workspaces
+fi
+
+if [ -n "${SIYUAN_WORKSPACES_CONFIG:-}" ] && [ -f "${SIYUAN_WORKSPACES_CONFIG}" ]; then
+    echo "Starting Siyuan multi-workspace launcher with config ${SIYUAN_WORKSPACES_CONFIG}"
+    exec su-exec "${PUID}:${PGID}" /opt/siyuan/siyuan-multi --config="${SIYUAN_WORKSPACES_CONFIG}" "$@"
+fi
 
 # Switch to the newly created user and start the main process with all arguments
 echo "Starting Siyuan with UID:${PUID} and GID:${PGID} in workspace ${WORKSPACE_DIR}"
-exec su-exec "${PUID}:${PGID}" /opt/siyuan/kernel --workspace="${WORKSPACE_DIR}" ${ARGS}
+exec su-exec "${PUID}:${PGID}" /opt/siyuan/kernel --workspace="${WORKSPACE_DIR}" "$@"

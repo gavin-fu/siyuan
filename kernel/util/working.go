@@ -136,7 +136,7 @@ func Boot() {
 			}
 		}
 	}
-	if ContainerStd != Container {
+	if ContainerStd != Container && (ContainerDocker != Container || "" == *port || "0" == *port) {
 		ServerPort = FixedPort
 	}
 
