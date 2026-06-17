@@ -39,3 +39,7 @@ yarn.lock
 
 # Workflows
 **/__pycache__
+
+
+# Docker Image
+siyuan-custom-dev.tar.gz

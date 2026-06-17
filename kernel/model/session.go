@@ -40,6 +40,8 @@ var (
 	BasicAuthHeaderValue = "Basic realm=\"SiYuan Authorization Require\", charset=\"UTF-8\""
 )
 
+const multiWorkspaceAuthCookieName = "siyuan-multi-auth"
+
 func LogoutAuth(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -61,6 +63,7 @@ func LogoutAuth(c *gin.Context) {
 		return
 	}
 
+	clearMultiWorkspaceAuthCookie(c)
 	util.BroadcastByType("main", "logoutAuth", 0, "", nil)
 }
 
@@ -153,6 +156,7 @@ func LoginAuth(c *gin.Context) {
 		sessionOptions.Domain = sessionDomain
 	}
 	ginSessions.Default(c).Options(sessionOptions)
+	setMultiWorkspaceAuthCookie(c, maxAge)
 
 	logging.LogInfof("auth success [ip=%s, maxAge=%d]", util.GetRemoteAddr(c.Request), maxAge)
 	if err := session.Save(c); err != nil {
@@ -206,6 +210,44 @@ func CheckReadonly(c *gin.Context) {
 		c.Abort()
 		return
 	}
+}
+
+func setMultiWorkspaceAuthCookie(c *gin.Context, maxAge int) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     multiWorkspaceAuthCookieName,
+		Value:    multiWorkspaceAuthCookieValue(),
+		Path:     "/",
+		Domain:   strings.TrimSpace(os.Getenv("SIYUAN_SESSION_DOMAIN")),
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   util.SSL || "https" == c.GetHeader("X-Forwarded-Proto"),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearMultiWorkspaceAuthCookie(c *gin.Context) {
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     multiWorkspaceAuthCookieName,
+		Value:    "",
+		Path:     "/",
+		Domain:   strings.TrimSpace(os.Getenv("SIYUAN_SESSION_DOMAIN")),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   util.SSL || "https" == c.GetHeader("X-Forwarded-Proto"),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func isMultiWorkspaceAuthCookieValid(c *gin.Context) bool {
+	cookie, err := c.Request.Cookie(multiWorkspaceAuthCookieName)
+	if nil != err {
+		return false
+	}
+	return cookie.Value == multiWorkspaceAuthCookieValue()
+}
+
+func multiWorkspaceAuthCookieValue() string {
+	return util.SHA256Hash([]byte("siyuan-multi-workspace-auth:" + Conf.AccessAuthCode))
 }
 
 func CheckAuth(c *gin.Context) {
@@ -342,6 +384,15 @@ func CheckAuth(c *gin.Context) {
 			c.Next()
 			return
 		}
+	}
+	if isMultiWorkspaceAuthCookieValid(c) {
+		workspaceSession.AccessAuthCode = Conf.AccessAuthCode
+		if err := session.Save(c); err != nil {
+			logging.LogErrorf("save session failed: " + err.Error())
+		}
+		c.Set(RoleContextKey, RoleAdministrator)
+		c.Next()
+		return
 	}
 
 	// 通过 BasicAuth (header: Authorization)
