@@ -17,10 +17,13 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sort"
 	"strings"
 	"time"
@@ -191,6 +194,14 @@ type Workspace struct {
 	Closed bool   `json:"closed"`
 }
 
+type MultiWorkspace struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Port    int    `json:"port"`
+	URL     string `json:"url"`
+	Current bool   `json:"current"`
+}
+
 func getMobileWorkspaces(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -221,6 +232,90 @@ func getMobileWorkspaces(c *gin.Context) {
 		}
 	}
 	ret.Data = paths
+}
+
+func getMultiWorkspaces(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	configPath := os.Getenv("SIYUAN_WORKSPACES_CONFIG")
+	if "" == configPath {
+		ret.Data = []*MultiWorkspace{}
+		return
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = fmt.Sprintf("read multi workspace config [%s] failed: %s", configPath, err)
+		return
+	}
+
+	workspacePorts := map[string]int{}
+	if err = json.Unmarshal(data, &workspacePorts); err != nil {
+		ret.Code = -1
+		ret.Msg = fmt.Sprintf("parse multi workspace config [%s] failed: %s", configPath, err)
+		return
+	}
+
+	root := os.Getenv("SIYUAN_WORKSPACES_ROOT")
+	if "" == root {
+		root = "/siyuan/workspaces"
+	}
+
+	var workspaces []*MultiWorkspace
+	for name, port := range workspacePorts {
+		if "" == strings.TrimSpace(name) || 0 >= port {
+			continue
+		}
+
+		path := filepath.Join(root, name)
+		workspaces = append(workspaces, &MultiWorkspace{
+			Name:    name,
+			Path:    path,
+			Port:    port,
+			URL:     multiWorkspaceURL(c, name, port),
+			Current: filepath.Clean(path) == filepath.Clean(util.WorkspaceDir),
+		})
+	}
+
+	sort.Slice(workspaces, func(i, j int) bool {
+		return util.NaturalCompare(workspaces[i].Name, workspaces[j].Name)
+	})
+	ret.Data = workspaces
+}
+
+func multiWorkspaceURL(c *gin.Context, name string, port int) string {
+	if urlTemplate := os.Getenv("SIYUAN_WORKSPACE_URL_TEMPLATE"); "" != urlTemplate {
+		urlTemplate = strings.ReplaceAll(urlTemplate, "{name}", name)
+		urlTemplate = strings.ReplaceAll(urlTemplate, "{port}", strconv.Itoa(port))
+		return urlTemplate
+	}
+
+	scheme := c.GetHeader("X-Forwarded-Proto")
+	if "" == scheme {
+		if nil != c.Request.TLS {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+
+	host := c.Request.Host
+	if forwardedHost := c.GetHeader("X-Forwarded-Host"); "" != forwardedHost {
+		host = forwardedHost
+	}
+	if splitHost, _, err := net.SplitHostPort(host); nil == err {
+		host = splitHost
+	}
+
+	hostParts := strings.Split(host, ".")
+	if 2 < len(hostParts) {
+		hostParts[0] = name
+		return fmt.Sprintf("%s://%s", scheme, strings.Join(hostParts, "."))
+	}
+
+	return fmt.Sprintf("%s://%s:%d", scheme, host, port)
 }
 
 func getWorkspaces(c *gin.Context) {

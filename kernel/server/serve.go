@@ -145,12 +145,16 @@ func Serve(fastMode bool, cookieKey string) {
 	)
 
 	sessionStore = cookie.NewStore([]byte(cookieKey))
-	sessionStore.Options(sessions.Options{
+	sessionOptions := sessions.Options{
 		Path:   "/",
 		Secure: util.SSL,
 		//MaxAge:   60 * 60 * 24 * 7, // 默认是 Session
 		HttpOnly: true,
-	})
+	}
+	if sessionDomain := strings.TrimSpace(os.Getenv("SIYUAN_SESSION_DOMAIN")); "" != sessionDomain {
+		sessionOptions.Domain = sessionDomain
+	}
+	sessionStore.Options(sessionOptions)
 	ginServer.Use(sessions.Sessions("siyuan", sessionStore))
 
 	serveDebug(ginServer)
@@ -236,7 +240,9 @@ func Serve(fastMode bool, cookieKey string) {
 
 	go func() {
 		time.Sleep(1 * time.Second)
-		go proxy.InitFixedPortService(host, useTLS, certPath, keyPath)
+		if util.ContainerDocker != util.Container {
+			go proxy.InitFixedPortService(host, useTLS, certPath, keyPath)
+		}
 		go proxy.InitPublishService()
 		// 反代服务器启动失败不影响核心服务器启动
 	}()

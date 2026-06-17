@@ -221,16 +221,17 @@ export const getAllLayout = () => {
 };
 
 const initInternalDock = (dockItem: Config.IUILayoutDockTab[]) => {
-    dockItem.forEach((existSubItem, index) => {
-        if (window.siyuan.isPublish && existSubItem.type === "inbox") {
+    for (let index = dockItem.length - 1; index >= 0; index--) {
+        const existSubItem = dockItem[index];
+        if (existSubItem.type === "inbox") {
             dockItem.splice(index, 1);
-            return;
+            continue;
         }
         if (existSubItem.hotkeyLangId) {
             existSubItem.title = window.siyuan.languages[existSubItem.hotkeyLangId];
             existSubItem.hotkey = window.siyuan.config.keymap.general[existSubItem.hotkeyLangId].custom;
         }
-    });
+    }
 };
 
 const JSONToDock = (json: any, app: App) => {

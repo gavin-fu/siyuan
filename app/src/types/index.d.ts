@@ -353,6 +353,14 @@ interface IWorkspace {
     closed: boolean;
 }
 
+interface IMultiWorkspace {
+    name: string;
+    path: string;
+    port: number;
+    url: string;
+    current: boolean;
+}
+
 interface ICardPackage {
     id: string;
     updated: string;

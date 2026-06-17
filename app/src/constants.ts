@@ -689,12 +689,6 @@ export abstract class Constants {
                     show: false,
                     icon: "iconAlignCenter",
                     hotkeyLangId: "outline",
-                }, {
-                    type: "inbox",
-                    size: {width: 320, height: 0},
-                    show: false,
-                    icon: "iconInbox",
-                    hotkeyLangId: "inbox",
                 }], [{
                     type: "bookmark",
                     size: {width: 232, height: 0},

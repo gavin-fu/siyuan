@@ -143,12 +143,16 @@ func LoginAuth(c *gin.Context) {
 		// Add a 'Remember me' checkbox when logging in to save a session https://github.com/siyuan-note/siyuan/pull/14964
 		maxAge = 60 * 60 * 24 * 30 // 30 days
 	}
-	ginSessions.Default(c).Options(ginSessions.Options{
+	sessionOptions := ginSessions.Options{
 		Path:     "/",
 		Secure:   util.SSL,
 		MaxAge:   maxAge,
 		HttpOnly: true,
-	})
+	}
+	if sessionDomain := strings.TrimSpace(os.Getenv("SIYUAN_SESSION_DOMAIN")); "" != sessionDomain {
+		sessionOptions.Domain = sessionDomain
+	}
+	ginSessions.Default(c).Options(sessionOptions)
 
 	logging.LogInfof("auth success [ip=%s, maxAge=%d]", util.GetRemoteAddr(c.Request), maxAge)
 	if err := session.Save(c); err != nil {
@@ -327,6 +331,17 @@ func CheckAuth(c *gin.Context) {
 		c.Set(RoleContextKey, RoleAdministrator)
 		c.Next()
 		return
+	}
+	for _, authenticatedWorkspaceSession := range session.Workspaces {
+		if nil != authenticatedWorkspaceSession && authenticatedWorkspaceSession.AccessAuthCode == Conf.AccessAuthCode {
+			workspaceSession.AccessAuthCode = Conf.AccessAuthCode
+			if err := session.Save(c); err != nil {
+				logging.LogErrorf("save session failed: " + err.Error())
+			}
+			c.Set(RoleContextKey, RoleAdministrator)
+			c.Next()
+			return
+		}
 	}
 
 	// 通过 BasicAuth (header: Authorization)

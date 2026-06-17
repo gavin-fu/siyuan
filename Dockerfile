@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:21 AS node-build
+FROM --platform=$BUILDPLATFORM node:21@sha256:4b232062fa976e3a966c49e9b6279efa56c8d207a67270868f51b3d155c4e33d AS node-build
 
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 ENV npm_config_registry=${NPM_REGISTRY}
@@ -25,7 +25,7 @@ mkdir /artifacts
 mv appearance stage guide changelogs /artifacts/
 EORUN
 
-FROM golang:1.25-alpine AS go-build
+FROM golang:1.25-alpine@sha256:8d95af53d0d58e1759ddb4028285d9b1239067e4fbf4f544618cad0f60fbc354 AS go-build
 
 RUN <<EORUN
 #!/bin/sh -e
@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/g
 RUN --mount=type=cache,target=/root/.cache/go-build --mount=type=cache,target=/go/pkg \
     go build -o /kernel/siyuan-multi -v -ldflags "-s -w" ./cmd/siyuan-multi
 
-FROM alpine:latest
+FROM alpine:latest@sha256:a2d49ea686c2adfe3c992e47dc3b5e7fa6e6b5055609400dc2acaeb241c829f4
 LABEL maintainer="Liang Ding<845765@qq.com>"
 
 RUN apk add --no-cache ca-certificates tzdata su-exec
@@ -55,7 +55,7 @@ RUN apk add --no-cache ca-certificates tzdata su-exec
 ENV TZ=Asia/Shanghai
 ENV HOME=/home/siyuan
 ENV RUN_IN_CONTAINER=true
-EXPOSE 6806 30010 30009 30008 30007
+EXPOSE 30010 30009 30008 30007 30006
 
 WORKDIR /opt/siyuan/
 COPY --from=go-build --chmod=755 /kernel/kernel /kernel/siyuan-multi /kernel/entrypoint.sh .

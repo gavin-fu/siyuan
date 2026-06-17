@@ -30,7 +30,7 @@ import {Dialog} from "../dialog";
 import {hasClosestByClassName} from "../protyle/util/hasClosest";
 import {confirmDialog} from "../dialog/confirmDialog";
 import {App} from "../index";
-import {isBrowser} from "../util/functions";
+import {isBrowser, isKernelInContainer} from "../util/functions";
 import {openRecentDocs} from "../business/openRecentDocs";
 import * as dayjs from "dayjs";
 import {upDownHint} from "../util/upDownHint";
@@ -149,10 +149,37 @@ export const workspaceMenu = (app: App, rect: DOMRect) => {
         window.siyuan.menus.menu.remove();
         return;
     }
-    fetchPost("/api/system/getWorkspaces", {}, (response) => {
+    const multiWorkspaceMode = isKernelInContainer() && !isInMobileApp();
+    fetchPost(multiWorkspaceMode ? "/api/system/getMultiWorkspaces" : "/api/system/getWorkspaces", {}, (response) => {
         window.siyuan.menus.menu.remove();
         window.siyuan.menus.menu.element.setAttribute("data-name", Constants.MENU_BAR_WORKSPACE);
-        if (!window.siyuan.config.readonly) {
+        if (multiWorkspaceMode) {
+            response.data.forEach((item: IMultiWorkspace) => {
+                window.siyuan.menus.menu.append(new MenuItem({
+                    id: `multiWorkspace-${item.name}`,
+                    iconHTML: "",
+                    current: item.current,
+                    label: escapeHtml(item.name),
+                    click() {
+                        if (item.current) {
+                            return;
+                        }
+                        if (item.url) {
+                            window.location.href = item.url;
+                            return;
+                        }
+
+                        const hostParts = window.location.hostname.split(".");
+                        if (hostParts.length > 2) {
+                            hostParts[0] = item.name;
+                            window.location.href = `${window.location.protocol}//${hostParts.join(".")}`;
+                        }
+                    }
+                }).element);
+            });
+            window.siyuan.menus.menu.append(new MenuItem({id: "separator_multiWorkspace", type: "separator"}).element);
+        }
+        if (!multiWorkspaceMode && !window.siyuan.config.readonly) {
             window.siyuan.menus.menu.append(new MenuItem({
                 id: "config",
                 label: window.siyuan.languages.config,
