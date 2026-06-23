@@ -30,6 +30,61 @@ import {commandPanel} from "../../boot/globalEvent/command/panel";
 import {openTopBarMenu} from "../../plugin/openTopBarMenu";
 import {initFileTree} from "../settings/fileTree";
 import {initExport} from "../settings/export";
+import {fetchPost} from "../../util/fetch";
+import {isKernelInContainer} from "../../util/functions";
+import {escapeAttr, escapeHtml} from "../../util/escape";
+
+const switchMultiWorkspace = (item: IMultiWorkspace) => {
+    if (item.current) {
+        return;
+    }
+    if (item.url) {
+        window.location.href = item.url;
+        return;
+    }
+
+    const hostParts = window.location.hostname.split(".");
+    if (hostParts.length > 2) {
+        hostParts[0] = item.name;
+        window.location.href = `${window.location.protocol}//${hostParts.join(".")}`;
+    }
+};
+
+const openMultiWorkspace = () => {
+    openModel({
+        title: window.siyuan.languages.workspaceList,
+        icon: "iconWorkspace",
+        html: `<div class="b3-list b3-list--background" id="multiWorkspaceList"></div>`,
+        bindEvent(modelMainElement: HTMLElement) {
+            const listElement = modelMainElement.querySelector("#multiWorkspaceList");
+            fetchPost("/api/system/getMultiWorkspaces", {}, (response) => {
+                let html = "";
+                response.data.forEach((item: IMultiWorkspace) => {
+                    html += `<div data-name="${escapeAttr(item.name)}" class="b3-list-item${item.current ? " b3-list-item--focus" : ""}">
+    <svg class="b3-list-item__graphic"><use xlink:href="#${item.current ? "iconSelect" : "iconWorkspace"}"></use></svg>
+    <span class="b3-list-item__text">${escapeHtml(item.name)}</span>
+</div>`;
+                });
+                listElement.innerHTML = html;
+                listElement.addEventListener("click", (event) => {
+                    let target = event.target as HTMLElement;
+                    while (target && !target.isEqualNode(listElement)) {
+                        if (target.classList.contains("b3-list-item")) {
+                            const item = response.data.find((workspace: IMultiWorkspace) => workspace.name === target.dataset.name);
+                            if (item) {
+                                switchMultiWorkspace(item);
+                            }
+                            event.preventDefault();
+                            event.stopPropagation();
+                            break;
+                        }
+                        target = target.parentElement;
+                    }
+                });
+            });
+        }
+    });
+};
 
 export const popMenu = () => {
     activeBlur();
@@ -38,13 +93,15 @@ export const popMenu = () => {
 
 export const initRightMenu = (app: App) => {
     const menuElement = document.getElementById("menu");
+    const multiWorkspaceMode = isKernelInContainer() && !isInMobileApp();
+    const mobileWebMode = !isInMobileApp();
     let accountHTML = "";
-    if (window.siyuan.user && !window.siyuan.config.readonly) {
+    if (!mobileWebMode && window.siyuan.user && !window.siyuan.config.readonly) {
         accountHTML = `<div class="b3-menu__item" id="menuAccount">
     <img class="b3-menu__icon" src="${window.siyuan.user.userAvatarURL}"/>
     <span class="b3-menu__label">${window.siyuan.user.userName}</span>
 </div>`;
-    } else if (!window.siyuan.config.readonly) {
+    } else if (!mobileWebMode && !window.siyuan.config.readonly) {
         accountHTML = `<div class="b3-menu__item" id="menuAccount">
     <svg class="b3-menu__icon"><use xlink:href="#iconAccount"></use></svg><span class="b3-menu__label">${window.siyuan.languages.login}</span>
 </div>`;
@@ -64,6 +121,9 @@ export const initRightMenu = (app: App) => {
     <span class="b3-menu__label">${window.siyuan.languages.back}</span>
 </div>
 <div class="b3-menu__items">
+    <div id="menuMultiWorkspace" class="b3-menu__item${multiWorkspaceMode ? "" : " fn__none"}">
+        <svg class="b3-menu__icon"><use xlink:href="#iconWorkspace"></use></svg><span class="b3-menu__label">${window.siyuan.languages.workspaceList}</span>
+    </div>
     ${accountHTML}
     <div id="menuRecent" class="b3-menu__item">
         <svg class="b3-menu__icon"><use xlink:href="#iconList"></use></svg><span class="b3-menu__label">${window.siyuan.languages.recentDocs}</span>
@@ -74,7 +134,7 @@ export const initRightMenu = (app: App) => {
     <div id="menuCommand" class="b3-menu__item">
         <svg class="b3-menu__icon"><use xlink:href="#iconTerminal"></use></svg><span class="b3-menu__label">${window.siyuan.languages.commandPanel}</span>
     </div>
-    <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuSyncNow">
+    <div class="b3-menu__item${(mobileWebMode || window.siyuan.config.readonly) ? " fn__none" : ""}" id="menuSyncNow">
         <svg class="b3-menu__icon"><use xlink:href="#iconCloudSucc"></use></svg><span class="b3-menu__label">${window.siyuan.languages.syncNow}</span>
     </div>
     <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuNewDoc">
@@ -120,7 +180,7 @@ export const initRightMenu = (app: App) => {
     <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuAppearance">
         <svg class="b3-menu__icon"><use xlink:href="#iconTheme"></use></svg><span class="b3-menu__label">${window.siyuan.languages.appearance}</span>
     </div>
-    <div id="menuSync" class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}">
+    <div id="menuSync" class="b3-menu__item${(mobileWebMode || window.siyuan.config.readonly) ? " fn__none" : ""}">
         <svg class="b3-menu__icon"><use xlink:href="#iconCloud"></use></svg><span class="b3-menu__label">${window.siyuan.languages.cloud}</span>
     </div>
     <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuPublish">
@@ -136,7 +196,7 @@ export const initRightMenu = (app: App) => {
     <div class="b3-menu__item${(isIPhone() || window.siyuan.config.readonly) ? " fn__none" : ""}" id="menuHelp">
         <svg class="b3-menu__icon"><use xlink:href="#iconHelp"></use></svg><span class="b3-menu__label">${window.siyuan.languages.userGuide}</span>
     </div>
-    <a class="b3-menu__item" href="${"zh_CN" === window.siyuan.config.lang || "zh_CHT" === window.siyuan.config.lang ? "https://ld246.com/article/1649901726096" : "https://liuyun.io/article/1686530886208"}" target="_blank">
+    <a class="b3-menu__item${mobileWebMode ? " fn__none" : ""}" href="${"zh_CN" === window.siyuan.config.lang || "zh_CHT" === window.siyuan.config.lang ? "https://ld246.com/article/1649901726096" : "https://liuyun.io/article/1686530886208"}" target="_blank">
         <svg class="b3-menu__icon"><use xlink:href="#iconFeedback"></use></svg>
         <span class="b3-menu__label">${window.siyuan.languages.feedback}</span>
     </a>
@@ -157,6 +217,11 @@ export const initRightMenu = (app: App) => {
             } else if (target.id === "menuCommand") {
                 closePanel();
                 commandPanel(app);
+                event.preventDefault();
+                event.stopPropagation();
+                break;
+            } else if (target.id === "menuMultiWorkspace") {
+                openMultiWorkspace();
                 event.preventDefault();
                 event.stopPropagation();
                 break;

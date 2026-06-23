@@ -55,7 +55,7 @@ RUN apk add --no-cache ca-certificates tzdata su-exec
 ENV TZ=Asia/Shanghai
 ENV HOME=/home/siyuan
 ENV RUN_IN_CONTAINER=true
-EXPOSE 30010 30009 30008 30007 30006
+EXPOSE 30000 30001 30002 30003 30004
 
 WORKDIR /opt/siyuan/
 COPY --from=go-build --chmod=755 /kernel/kernel /kernel/siyuan-multi /kernel/entrypoint.sh .

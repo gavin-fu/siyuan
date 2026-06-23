@@ -12,18 +12,20 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
 
 type workspaceConfig struct {
+	Name string `json:"-"`
 	Path string `json:"path"`
 	Port int    `json:"port"`
 }
 
 const defaultWorkspaceRoot = "/siyuan/workspaces"
+const defaultWorkspaceBasePort = 30000
 
 type childProcess struct {
 	Name string
@@ -40,15 +42,16 @@ func main() {
 	configPath := flag.String("config", os.Getenv("SIYUAN_WORKSPACES_CONFIG"), "path to workspaces json config")
 	kernelPath := flag.String("kernel", "/opt/siyuan/kernel", "path to SiYuan kernel binary")
 	workspaceRoot := flag.String("workspace-root", getEnvDefault("SIYUAN_WORKSPACES_ROOT", defaultWorkspaceRoot), "root directory for simplified workspace config")
+	workspaceBasePort := flag.Int("workspace-base-port", getEnvIntDefault("SIYUAN_WORKSPACE_BASE_PORT", defaultWorkspaceBasePort), "base port for simplified workspace config")
 	flag.Parse()
 
-	if err := run(*configPath, *kernelPath, *workspaceRoot, sanitizeKernelArgs(flag.Args())); err != nil {
+	if err := run(*configPath, *kernelPath, *workspaceRoot, *workspaceBasePort, sanitizeKernelArgs(flag.Args())); err != nil {
 		fmt.Fprintf(os.Stderr, "siyuan-multi: %s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath, kernelPath, workspaceRoot string, commonArgs []string) error {
+func run(configPath, kernelPath, workspaceRoot string, workspaceBasePort int, commonArgs []string) error {
 	if configPath == "" {
 		return errors.New("missing config path")
 	}
@@ -56,7 +59,7 @@ func run(configPath, kernelPath, workspaceRoot string, commonArgs []string) erro
 		return errors.New("missing kernel path")
 	}
 
-	workspaces, err := loadConfig(configPath, workspaceRoot)
+	workspaces, err := loadConfig(configPath, workspaceRoot, workspaceBasePort)
 	if err != nil {
 		return err
 	}
@@ -64,20 +67,13 @@ func run(configPath, kernelPath, workspaceRoot string, commonArgs []string) erro
 		return fmt.Errorf("no workspace configured in %s", configPath)
 	}
 
-	names := make([]string, 0, len(workspaces))
-	for name := range workspaces {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	if err := validateConfig(workspaces, names); err != nil {
+	if err := validateConfig(workspaces); err != nil {
 		return err
 	}
 
-	children := make([]childProcess, 0, len(names))
-	exited := make(chan childExit, len(names))
-	for _, name := range names {
-		workspace := workspaces[name]
+	children := make([]childProcess, 0, len(workspaces))
+	exited := make(chan childExit, len(workspaces))
+	for _, workspace := range workspaces {
 		if err := os.MkdirAll(workspace.Path, 0755); err != nil {
 			return fmt.Errorf("create workspace [%s] failed: %w", workspace.Path, err)
 		}
@@ -94,12 +90,12 @@ func run(configPath, kernelPath, workspaceRoot string, commonArgs []string) erro
 		cmd.Stdin = os.Stdin
 		if err := cmd.Start(); err != nil {
 			stopChildren(children, 10*time.Second)
-			return fmt.Errorf("start workspace [%s] on port [%d] failed: %w", name, workspace.Port, err)
+			return fmt.Errorf("start workspace [%s] on port [%d] failed: %w", workspace.Name, workspace.Port, err)
 		}
 
-		child := childProcess{Name: name, Cmd: cmd, Done: make(chan struct{})}
+		child := childProcess{Name: workspace.Name, Cmd: cmd, Done: make(chan struct{})}
 		children = append(children, child)
-		fmt.Printf("started workspace [%s] path [%s] port [%d] pid [%d]\n", name, workspace.Path, workspace.Port, cmd.Process.Pid)
+		fmt.Printf("started workspace [%s] path [%s] port [%d] pid [%d]\n", workspace.Name, workspace.Path, workspace.Port, cmd.Process.Pid)
 
 		go func(child childProcess) {
 			_ = child.Cmd.Wait()
@@ -130,24 +126,26 @@ func run(configPath, kernelPath, workspaceRoot string, commonArgs []string) erro
 	}
 }
 
-func loadConfig(configPath, workspaceRoot string) (map[string]workspaceConfig, error) {
+func loadConfig(configPath, workspaceRoot string, workspaceBasePort int) ([]workspaceConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("read config [%s] failed: %w", configPath, err)
 	}
 
-	ports := map[string]int{}
-	if err := json.Unmarshal(data, &ports); err != nil {
+	names := []string{}
+	if err := json.Unmarshal(data, &names); err != nil {
 		return nil, fmt.Errorf("decode config [%s] failed: %w", configPath, err)
 	}
 
 	workspaceRoot = filepath.Clean(workspaceRoot)
-	workspaces := map[string]workspaceConfig{}
-	for name, port := range ports {
-		workspaces[name] = workspaceConfig{
+	workspaces := make([]workspaceConfig, 0, len(names))
+	for i, name := range names {
+		name = strings.TrimSpace(name)
+		workspaces = append(workspaces, workspaceConfig{
+			Name: name,
 			Path: filepath.Join(workspaceRoot, name),
-			Port: port,
-		}
+			Port: workspaceBasePort + i,
+		})
 	}
 	return workspaces, nil
 }
@@ -159,35 +157,48 @@ func getEnvDefault(name, fallback string) string {
 	return fallback
 }
 
-func validateConfig(workspaces map[string]workspaceConfig, names []string) error {
+func getEnvIntDefault(name string, fallback int) int {
+	if value := os.Getenv(name); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func validateConfig(workspaces []workspaceConfig) error {
+	names := map[string]struct{}{}
 	ports := map[int]string{}
 	paths := map[string]string{}
-	for _, name := range names {
-		if strings.TrimSpace(name) == "" {
+	for _, workspace := range workspaces {
+		if strings.TrimSpace(workspace.Name) == "" {
 			return errors.New("workspace name must not be empty")
 		}
+		if _, ok := names[workspace.Name]; ok {
+			return fmt.Errorf("workspace [%s] is duplicated", workspace.Name)
+		}
+		names[workspace.Name] = struct{}{}
 
-		workspace := workspaces[name]
 		if strings.TrimSpace(workspace.Path) == "" {
-			return fmt.Errorf("workspace [%s] path must not be empty", name)
+			return fmt.Errorf("workspace [%s] path must not be empty", workspace.Name)
 		}
 		if !filepath.IsAbs(workspace.Path) {
-			return fmt.Errorf("workspace [%s] path [%s] must be absolute", name, workspace.Path)
+			return fmt.Errorf("workspace [%s] path [%s] must be absolute", workspace.Name, workspace.Path)
 		}
 		if workspace.Port < 1 || workspace.Port > 65535 {
-			return fmt.Errorf("workspace [%s] port [%d] is out of range", name, workspace.Port)
+			return fmt.Errorf("workspace [%s] port [%d] is out of range", workspace.Name, workspace.Port)
 		}
 
 		cleanPath := filepath.Clean(workspace.Path)
 		if previous, ok := paths[cleanPath]; ok {
-			return fmt.Errorf("workspace [%s] and [%s] use the same path [%s]", previous, name, cleanPath)
+			return fmt.Errorf("workspace [%s] and [%s] use the same path [%s]", previous, workspace.Name, cleanPath)
 		}
-		paths[cleanPath] = name
+		paths[cleanPath] = workspace.Name
 
 		if previous, ok := ports[workspace.Port]; ok {
-			return fmt.Errorf("workspace [%s] and [%s] use the same port [%d]", previous, name, workspace.Port)
+			return fmt.Errorf("workspace [%s] and [%s] use the same port [%d]", previous, workspace.Name, workspace.Port)
 		}
-		ports[workspace.Port] = name
+		ports[workspace.Port] = workspace.Name
 	}
 	return nil
 }

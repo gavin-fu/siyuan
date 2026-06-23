@@ -251,8 +251,8 @@ func getMultiWorkspaces(c *gin.Context) {
 		return
 	}
 
-	workspacePorts := map[string]int{}
-	if err = json.Unmarshal(data, &workspacePorts); err != nil {
+	workspaceNames := []string{}
+	if err = json.Unmarshal(data, &workspaceNames); err != nil {
 		ret.Code = -1
 		ret.Msg = fmt.Sprintf("parse multi workspace config [%s] failed: %s", configPath, err)
 		return
@@ -263,9 +263,18 @@ func getMultiWorkspaces(c *gin.Context) {
 		root = "/siyuan/workspaces"
 	}
 
+	basePort, err := multiWorkspaceBasePort()
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
 	var workspaces []*MultiWorkspace
-	for name, port := range workspacePorts {
-		if "" == strings.TrimSpace(name) || 0 >= port {
+	for i, name := range workspaceNames {
+		name = strings.TrimSpace(name)
+		port := basePort + i
+		if "" == name || 0 >= port || port > 65535 {
 			continue
 		}
 
@@ -279,10 +288,22 @@ func getMultiWorkspaces(c *gin.Context) {
 		})
 	}
 
-	sort.Slice(workspaces, func(i, j int) bool {
-		return util.NaturalCompare(workspaces[i].Name, workspaces[j].Name)
-	})
 	ret.Data = workspaces
+}
+
+func multiWorkspaceBasePort() (int, error) {
+	basePort := 30000
+	if value := os.Getenv("SIYUAN_WORKSPACE_BASE_PORT"); "" != value {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return 0, fmt.Errorf("parse SIYUAN_WORKSPACE_BASE_PORT [%s] failed: %s", value, err)
+		}
+		basePort = parsed
+	}
+	if basePort < 1 || basePort > 65535 {
+		return 0, fmt.Errorf("SIYUAN_WORKSPACE_BASE_PORT [%d] is out of range", basePort)
+	}
+	return basePort, nil
 }
 
 func multiWorkspaceURL(c *gin.Context, name string, port int) string {

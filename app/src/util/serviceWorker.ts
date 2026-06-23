@@ -7,6 +7,9 @@ export const registerServiceWorker = (
         updateViaCache: "all",
     },
 ) => {
+    void scriptURL;
+    void options;
+
     /// #if BROWSER
     if (window.webkit?.messageHandlers || window.JSAndroid || window.JSHarmony ||
         !("serviceWorker" in window.navigator)
@@ -17,13 +20,12 @@ export const registerServiceWorker = (
         return;
     }
 
-    // REF https://developer.mozilla.org/en-US/docs/Web/API/ServiceWorkerRegistration
-    window.navigator.serviceWorker
-        .register(scriptURL, options)
-        .then(registration => {
-            registration.update();
-        }).catch(e => {
-        console.debug(`Registration failed with ${e}`);
+    window.navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => {
+            registration.unregister();
+        });
+    }).catch(e => {
+        console.debug(`Unregister service worker failed with ${e}`);
     });
     /// #endif
 };

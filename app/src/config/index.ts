@@ -8,8 +8,6 @@ import {image} from "./image";
 import {initConfigSearch} from "./search";
 import {fileTree} from "./fileTree";
 import {exportConfig} from "./exportConfig";
-import {account} from "./account";
-import {repos} from "./repos";
 import {keymap} from "./keymap";
 import {bazaar} from "./bazaar";
 import {query} from "./query";
@@ -64,16 +62,6 @@ export const genItemPanel = (type: string, containerElement: Element, app: App) 
             bazaar.element = containerElement;
             containerElement.innerHTML = bazaar.genHTML();
             bazaar.bindEvent(app);
-            break;
-        case "account":
-            containerElement.innerHTML = account.genHTML();
-            account.element = containerElement;
-            account.bindEvent(account.element);
-            break;
-        case "repos":
-            containerElement.innerHTML = repos.genHTML();
-            repos.element = containerElement;
-            repos.bindEvent();
             break;
         case "about":
             containerElement.innerHTML = about.genHTML();
@@ -131,8 +119,6 @@ export const openSetting = (app: App) => {
     <li data-name="bazaar" class="b3-list-item${isHuawei() || isInHarmony() ? " fn__none" : ""}"><svg class="b3-list-item__graphic"><use xlink:href="#iconBazaar"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.bazaar}</span></li>
     <li data-name="search" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconSearch"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.search}</span></li>
     <li data-name="keymap" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconKeymap"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.keymap}</span></li>
-    <li data-name="account" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconAccount"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.account}</span></li>
-    <li data-name="repos" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconCloud"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.cloud}</span></li>
     <li data-name="publish" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconLanguage"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.publish}</span></li>
     <li data-name="about" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconInfo"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.about}</span></li>
   </ul>
@@ -148,8 +134,6 @@ export const openSetting = (app: App) => {
       <div class="config__tab-container config__tab-container--top fn__none" data-name="bazaar"></div>
       <div class="config__tab-container fn__none" data-name="search"></div>
       <div class="config__tab-container fn__none" style="overflow: scroll" data-name="keymap"></div>
-      <div class="config__tab-container config__tab-container--full fn__none" data-name="account"></div>
-      <div class="config__tab-container fn__none" data-name="repos"></div>
       <div class="config__tab-container fn__none" data-name="publish"></div>
       <div class="config__tab-container fn__none" data-name="about"></div>
       <div class="fn__hr--b"></div>

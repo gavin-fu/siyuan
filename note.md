@@ -10,5 +10,5 @@ git merge upstream/master
 
 ### 构建docker image
 ```shell
-docker build --build-arg NPM_REGISTRY=https://registry.npmmirror.com -t gavin/siyuan-custom:dev .
+docker build -t gavin/siyuan-custom:dev .
 ```

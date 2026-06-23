@@ -131,6 +131,49 @@ const editLayout = (layoutName?: string) => {
     });
 };
 
+const isMultiWorkspaceMode = () => isKernelInContainer() && !isInMobileApp();
+
+const switchMultiWorkspace = (item: IMultiWorkspace) => {
+    if (item.current) {
+        return;
+    }
+    if (item.url) {
+        window.location.href = item.url;
+        return;
+    }
+
+    const hostParts = window.location.hostname.split(".");
+    if (hostParts.length > 2) {
+        hostParts[0] = item.name;
+        window.location.href = `${window.location.protocol}//${hostParts.join(".")}`;
+    }
+};
+
+export const multiWorkspaceMenu = (rect: DOMRect) => {
+    const menuName = "barMultiWorkspace";
+    if (!window.siyuan.menus.menu.element.classList.contains("fn__none") &&
+        window.siyuan.menus.menu.element.getAttribute("data-name") === menuName) {
+        window.siyuan.menus.menu.remove();
+        return;
+    }
+    fetchPost("/api/system/getMultiWorkspaces", {}, (response) => {
+        window.siyuan.menus.menu.remove();
+        window.siyuan.menus.menu.element.setAttribute("data-name", menuName);
+        response.data.forEach((item: IMultiWorkspace) => {
+            window.siyuan.menus.menu.append(new MenuItem({
+                id: `multiWorkspace-${item.name}`,
+                iconHTML: "",
+                current: item.current,
+                label: escapeHtml(item.name),
+                click() {
+                    switchMultiWorkspace(item);
+                }
+            }).element);
+        });
+        window.siyuan.menus.menu.popup({x: rect.left, y: rect.bottom});
+    });
+};
+
 const togglePinDock = (id: string, dock: Dock, icon: string) => {
     return {
         id,
@@ -149,37 +192,11 @@ export const workspaceMenu = (app: App, rect: DOMRect) => {
         window.siyuan.menus.menu.remove();
         return;
     }
-    const multiWorkspaceMode = isKernelInContainer() && !isInMobileApp();
+    const multiWorkspaceMode = isMultiWorkspaceMode();
     fetchPost(multiWorkspaceMode ? "/api/system/getMultiWorkspaces" : "/api/system/getWorkspaces", {}, (response) => {
         window.siyuan.menus.menu.remove();
         window.siyuan.menus.menu.element.setAttribute("data-name", Constants.MENU_BAR_WORKSPACE);
-        if (multiWorkspaceMode) {
-            response.data.forEach((item: IMultiWorkspace) => {
-                window.siyuan.menus.menu.append(new MenuItem({
-                    id: `multiWorkspace-${item.name}`,
-                    iconHTML: "",
-                    current: item.current,
-                    label: escapeHtml(item.name),
-                    click() {
-                        if (item.current) {
-                            return;
-                        }
-                        if (item.url) {
-                            window.location.href = item.url;
-                            return;
-                        }
-
-                        const hostParts = window.location.hostname.split(".");
-                        if (hostParts.length > 2) {
-                            hostParts[0] = item.name;
-                            window.location.href = `${window.location.protocol}//${hostParts.join(".")}`;
-                        }
-                    }
-                }).element);
-            });
-            window.siyuan.menus.menu.append(new MenuItem({id: "separator_multiWorkspace", type: "separator"}).element);
-        }
-        if (!multiWorkspaceMode && !window.siyuan.config.readonly) {
+        if (!window.siyuan.config.readonly) {
             window.siyuan.menus.menu.append(new MenuItem({
                 id: "config",
                 label: window.siyuan.languages.config,

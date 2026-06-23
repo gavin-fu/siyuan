@@ -7,7 +7,7 @@ import {
 import {exitSiYuan, processSync} from "../dialog/processSystem";
 import {goBack, goForward} from "../util/backForward";
 import {syncGuide} from "../sync/syncGuide";
-import {workspaceMenu} from "../menus/workspace";
+import {multiWorkspaceMenu, workspaceMenu} from "../menus/workspace";
 import {MenuItem} from "../menus/Menu";
 import {setMode} from "../util/assets";
 import {openSetting} from "../config";
@@ -17,7 +17,7 @@ import {App} from "../index";
 import {ipcRenderer, webFrame} from "electron";
 /// #endif
 import {Constants} from "../constants";
-import {isBrowser, isWindow} from "../util/functions";
+import {isBrowser, isKernelInContainer, isWindow} from "../util/functions";
 import {fetchPost} from "../util/fetch";
 import {needSubscribe} from "../util/needSubscribe";
 import * as dayjs from "dayjs";
@@ -27,8 +27,12 @@ import {openTopBarMenu} from "../plugin/openTopBarMenu";
 
 export const initBar = (app: App) => {
     const toolbarElement = document.getElementById("toolbar");
+    const multiWorkspaceMode = isKernelInContainer() && !isInMobileApp();
     toolbarElement.innerHTML = `
-<div id="barWorkspace" class="ariaLabel toolbar__item toolbar__item--active" aria-label="${window.siyuan.languages.mainMenu} ${updateHotkeyTip(window.siyuan.config.keymap.general.mainMenu.custom)}">
+<div id="barWorkspace" class="ariaLabel toolbar__item${multiWorkspaceMode ? "" : " toolbar__item--active"}" aria-label="${window.siyuan.languages.mainMenu} ${updateHotkeyTip(window.siyuan.config.keymap.general.mainMenu.custom)}">
+    ${multiWorkspaceMode ? '<svg><use xlink:href="#iconSettings"></use></svg>' : `<span class="toolbar__text">${getWorkspaceName()}</span><svg class="toolbar__svg"><use xlink:href="#iconDown"></use></svg>`}
+</div>
+<div id="barMultiWorkspace" class="ariaLabel toolbar__item${multiWorkspaceMode ? "" : " fn__none"}" aria-label="${window.siyuan.languages.workspaceList}">
     <span class="toolbar__text">${getWorkspaceName()}</span>
     <svg class="toolbar__svg"><use xlink:href="#iconDown"></use></svg>
 </div>
@@ -120,6 +124,10 @@ export const initBar = (app: App) => {
                 break;
             } else if (targetId === "barWorkspace") {
                 workspaceMenu(app, target.getBoundingClientRect());
+                event.stopPropagation();
+                break;
+            } else if (targetId === "barMultiWorkspace") {
+                multiWorkspaceMenu(target.getBoundingClientRect());
                 event.stopPropagation();
                 break;
             } else if (targetId === "barExit") {
