@@ -173,6 +173,33 @@
             font-size: 12px;
             margin: 16px 0;
         }
+
+        .beian {
+            position: fixed;
+            right: 0;
+            bottom: calc(16px + env(safe-area-inset-bottom));
+            left: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-sizing: border-box;
+            padding: 0 16px;
+            color: var(--b3-theme-on-surface);
+            font-size: 12px;
+            line-height: 20px;
+        }
+
+        .beian img {
+            width: 18px;
+            height: 20px;
+            flex: 0 0 auto;
+        }
+
+        .beian a {
+            color: inherit;
+        }
     </style>
 </head>
 <body>
@@ -196,6 +223,10 @@
     <div class="ft__on-surface">
         {{.l7}}
     </div>
+</div>
+<div class="beian">
+    <img src="/beian.png" alt="">
+    <a href="https://beian.mps.gov.cn/#/query/webSearch?code=43020002000411" rel="noreferrer" target="_blank">湘公网安备43020002000411号</a>
 </div>
 <div style="overflow: hidden;position: absolute;height: 100%;width: 100%;top: 0;left: 0;">
     <svg style="top: 50%;left: 50%;width: 200%;transform: translate(-50%, -50%);position: absolute;z-index: 1;"

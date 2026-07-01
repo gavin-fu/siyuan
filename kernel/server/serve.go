@@ -1039,6 +1039,7 @@ func jwtMiddleware(c *gin.Context) {
 
 func serveFixedStaticFiles(ginServer *gin.Engine) {
 	ginServer.StaticFile("favicon.ico", filepath.Join(util.WorkingDir, "stage", "icon.png"))
+	ginServer.StaticFile("beian.png", filepath.Join(util.WorkingDir, "stage", "images", "beian.png"))
 
 	ginServer.StaticFile("manifest.json", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
 	ginServer.StaticFile("manifest.webmanifest", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
